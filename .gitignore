@@ -1,0 +1,6 @@
+search_gallery/
+tiny-imagenet-200/
+test-*/
+*.npy
+*.txt
+*.index

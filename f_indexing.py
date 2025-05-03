@@ -16,7 +16,7 @@ from PIL import Image
 import numpy as np
 import faiss
 from tqdm import tqdm
-
+from feature_extractor import get_feature_extractor
 # ———————————————
 # 1) CONFIG
 # ———————————————

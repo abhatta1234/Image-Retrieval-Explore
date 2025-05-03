@@ -4,7 +4,7 @@ import torchvision.models as models
 import clip
 
 
-def get_feature_extractor(model_name, pretrained=True, device="cuda"):
+def get_feature_extractor(model_name, pretrained=True, device="cpu"):
     """
     Get a feature extractor model by name with minimal code.
 

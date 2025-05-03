@@ -1,69 +1,107 @@
-import faiss
-import numpy as np
-from PIL import Image
-from torchvision import models, transforms, datasets
-import torch
-from torch import nn
-import shutil
-from sklearn.metrics.pairwise import cosine_similarity
+
+import argparse
+import os
 import time
 
-# 1) LOAD INDEX + PATHS
-index = faiss.read_index("/scratch365/abhatta/search_webapp/flatl2.index")         # or ivf.index
-with open("/scratch365/abhatta/search_webapp/image_paths.txt") as f:
-    gallery_paths = [line.strip() for line in f]
+import faiss
+import numpy as np
+import torch
+from PIL import Image
+from torchvision import transforms
+
+from feature_extractor import get_feature_extractor
 
 
-def extract_image_feat(image_path: str) -> np.ndarray:
-    """
-    Load one image, preprocess, and extract a 1×512 float32 feature vector.
-    """
-    img = Image.open(image_path).convert("RGB")
-    x   = preproc(img).unsqueeze(0).to(device)    # shape: [1, 3, 224, 224]
+def extract_query_feat(path, model, preprocess, device):
+    img = Image.open(path).convert('RGB')
+    x = preprocess(img).unsqueeze(0).to(device)
     with torch.no_grad():
-        feat = model(x).cpu().numpy()             # shape: [1, 512]
-    return feat.astype('float32')                 # ensure faiss compatibility
+        feat = model(x)
+        feat = torch.nn.functional.normalize(feat, p=2, dim=1).cpu().numpy()
+    return feat
 
 
-# 2) SET UP MODEL (same as before)
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = models.resnet18(pretrained=True)
-model.fc = nn.Identity()
-model.to(device).eval()
-
-preproc = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
-])
+def load_faiss_index(path):
+    return faiss.read_index(path)
 
 
-query_feat = extract_image_feat("/scratch365/abhatta/search_webapp/tiny-imagenet-200/test/images/test_0.JPEG")
-# start timer
-start = time.perf_counter()
-D, I = index.search(query_feat, k=5)
-elapsed = time.perf_counter() - start
+def search_faiss(index, q_feat, k):
+    D, I = index.search(q_feat.astype('float32'), k)
+    return D[0], I[0]
 
-# # for index in I[0]:
-# #     print(index)
-# #     shutil.copy(gallery_paths[index],"/scratch365/abhatta/search_webapp/test-checks-ivf")
-#
-# print(query_feat.shape)
-#
-#
-#
-# all_features = np.load("/scratch365/abhatta/search_webapp/features.npy")
-# # Compute cosine similarities
-# similarities = cosine_similarity(query_feat, all_features)  # shape: (1, 100000)
-#
-# # Get top 5 indices and values
-# top5_indices = np.argsort(similarities[0])[-5:][::-1]
-#
-#
-# top5_similarities = similarities[0, top5_indices]
-#
-# print("Top 5 indices:", top5_indices)
-# print("Top 5 similarities:", top5_similarities)
-print(f"Elapsed time: {elapsed:.4f} s")
 
+def brute_cosine_search(feats, q_feat, k):
+    sims = feats.dot(q_feat.T).squeeze()
+    idx = np.argsort(sims)[-k:][::-1]
+    return sims[idx], idx
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Search query image against FAISS and brute-force searches'
+    )
+    parser.add_argument('--query',    required=True, help='Query image path')
+    parser.add_argument('--out-dir',  required=True, help='Directory with saved indexes and features')
+    parser.add_argument('--model',    default='resnet18', choices=['resnet18','mobilenet','clip'], help='Backbone model')
+    parser.add_argument('--flat-l2',  required=True, help='Flat L2 FAISS index file')
+    parser.add_argument('--flat-ip',  required=True, help='Flat IP FAISS index file')
+    parser.add_argument('--features', required=True, help='NumPy file of gallery features')
+    parser.add_argument('--paths',    required=True, help='Text file of gallery image paths')
+    parser.add_argument('--k',        type=int, default=5, help='Number of top results')
+    args = parser.parse_args()
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model, _ = get_feature_extractor(args.model, pretrained=True, device=device)
+    model.eval()
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
+    ])
+
+    # Extract query feature
+    t0 = time.perf_counter()
+    q_feat = extract_query_feat(args.query, model, preprocess, device)
+    tq = time.perf_counter() - t0
+
+    # FAISS L2 search
+    idx_l2 = load_faiss_index(args.flat_l2)
+    t0 = time.perf_counter()
+    D_l2, I_l2 = search_faiss(idx_l2, q_feat, args.k)
+    t_l2 = time.perf_counter() - t0
+
+    # FAISS IP search
+    idx_ip = load_faiss_index(args.flat_ip)
+    t0 = time.perf_counter()
+    D_ip, I_ip = search_faiss(idx_ip, q_feat, args.k)
+    t_ip = time.perf_counter() - t0
+
+    # Brute cosine search
+    feats = np.load(args.features)
+    t0 = time.perf_counter()
+    D_cos, I_cos = brute_cosine_search(feats, q_feat, args.k)
+    t_cos = time.perf_counter() - t0
+
+    # Load paths
+    with open(args.paths) as f:
+        paths = [line.strip() for line in f]
+
+    # Print timings
+    print(f"Query extract: {tq:.4f}s")
+    print(f"Flat L2 search: {t_l2:.4f}s")
+    print(f"Flat IP search: {t_ip:.4f}s")
+    print(f"Brute cosine: {t_cos:.4f}s")
+
+    # Print top-k results
+    print("\nTop-k results:")
+    def display(name, I, D):
+        print(f"\n{name}:")
+        for idx, score in zip(I, D):
+            print(f"  {paths[idx]} (score={score:.4f})")
+    display('L2', I_l2, D_l2)
+    display('IP', I_ip, D_ip)
+    display('Cosine', I_cos, D_cos)
+
+if __name__ == '__main__':
+    main()

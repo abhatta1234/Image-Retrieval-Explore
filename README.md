@@ -23,16 +23,31 @@ All training images (100k) from tiny-imagenet are processed to extract feature v
 ### Vector Normalization
 
 For cosine similarity search:
-- Vectors are normalized using `faiss.normalize_L2`
+```
+# Want to apply cosine similarity search
+# So we normalize feature vectors so that dot product = cos(θ):
+#   cos(θ) = (u/|u|) · (v/|v|)  ∈ [−1, 1]
+# From Cauchy-Schwarz:  |a·b| ≤ ‖a‖‖b‖
+```
+
+Implementation details:
+- Vectors are normalized during feature extraction and inference: `torch.nn.functional.normalize(features, p=2, dim=1)`
 - After normalization, cosine similarity is equivalent to inner product
 - For normalized vectors: |x−y|² = 2−2×⟨x,y⟩
+
+
+- The relationship between L2 distance and cosine similarity for normalized vectors:
+  - |x−y|² = |x|² + |y|² - 2⟨x,y⟩
+  - For unit vectors where |x| = |y| = 1:
+  - |x−y|² = 2 - 2⟨x,y⟩ = 2 - 2cos(θ)
+This allows converting between distance and similarity metrics
 
 ### FAISS Clustering
 
 For the ANN implementation, the number of clusters (nlist) is a key parameter:
 - Rule of thumb: between √N (≈316) and N/10 (10,000) for 100k vectors
 - Common practical values: 100, 256, 512, or 1024
-- Initial implementation uses 256 clusters
+- Initial implementation uses √N clusters
 
 ## Performance Results
 
@@ -40,10 +55,10 @@ The performance comparison across models and search methods:
 
 | Method | MobileNet | ResNet18 | CLIP |
 |--------|-----------|----------|------|
-| Feature extraction | -         | -        | -    |
-| Brute-Search | -         | -        | -    |
-| FAISS-Flat | -         | -        | -    |
-| FAISS-IVF | -         | -        | -    |
+| Feature extraction | ✓ | ✓ | ✓ |
+| Brute-Search | ✓ | ✓ | ✓ |
+| FAISS-Flat | ✓ | ✓ | ✓ |
+| FAISS-IVF | ✓ | ✓ | ✓ |
 
 > Note: Feature extraction is performed per single image, so network inference time dominates rather than data transfer costs.
 

@@ -10,9 +10,13 @@ The project compares three different search approaches:
 3. Approximate Nearest Neighbor (ANN) search using FAISS
 
 Features are extracted using three different models:
-- ResNet18
-- MobileNet
-- CLIP Vision Encoder
+
+| Model                        | Parameter Count (Millions) |
+|------------------------------|---------------------------|
+| ResNet18                     | ~11.7M                    |
+| MobileNet                    | ~4.2M                     |
+| CLIP Vision Encoder (ViT-B/32) | ~87.85M                 |
+
 
 ## Implementation Details
 
@@ -52,6 +56,8 @@ For the ANN implementation, the number of clusters (nlist) is a key parameter:
 ## Performance Results
 
 The performance comparison across models and search methods:
+
+> Need to update the result and explain after it is done
 
 | Method | MobileNet | ResNet18 | CLIP |
 |--------|-----------|----------|------|

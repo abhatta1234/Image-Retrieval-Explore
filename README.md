@@ -55,17 +55,19 @@ For the ANN implementation, the number of clusters (nlist) is a key parameter:
 
 ## Performance Results
 
-The performance comparison across models and search methods:
+To calculate average timing, each of the 100K images was processed through each neural network for feature extraction and then searched using each method. The reported values represent the average of these 100K runs. Feature extraction was performed using an NVIDIA Titan XP GPU, while search operations were conducted on CPU/compute nodes.
 
-> Need to update the result and explain after it is done
+| Method             | ResNet18  | Mobilenet   |   CLIP    |
+|:-------------------|:---------:|:-----------:|:---------:|
+| Feature dim        |    512    |    1280     |    512    |
+| Feature extraction |  0.03686s |   0.02060s  |  0.03746s |
+| Brute-Search       |  0.02646s |   0.04427s  |  0.02701s |
+| FAISS-Flat         |  0.01635s |   0.03949s  |  0.01757s |
+| FAISS-IVF          |  0.00016s |   0.00035s  |  0.00017s |
 
-| Method | MobileNet | ResNet18 | CLIP |
-|--------|-----------|----------|------|
-| Feature extraction | ✓ | ✓ | ✓ |
-| Brute-Search | ✓ | ✓ | ✓ |
-| FAISS-Flat | ✓ | ✓ | ✓ |
-| FAISS-IVF | ✓ | ✓ | ✓ |
 
+> Search time for MobileNet is higher due to its larger feature dimension.  
+> MobileNet's inference time is the lowest, as it has low MFLOPS.  
 > Note: Feature extraction is performed per single image, so network inference time dominates rather than data transfer costs.
 
 ## Key Insights

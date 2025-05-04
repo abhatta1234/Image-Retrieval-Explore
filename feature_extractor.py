@@ -32,9 +32,17 @@ def get_feature_extractor(model_name, pretrained=True, device="cpu"):
     elif model_name == "clip":
         clip_model, _ = clip.load("ViT-B/32", device=device)
         model = clip_model.visual
+
+        # by default for efficiency reason clip is loaded in fp16
+        # to make it fp32
+        #model = model.float()
+        # OR, return float32 for all
+
         feature_dim = 512
 
     else:
         raise ValueError(f"Unsupported model: {model_name}")
 
-    return model.to(device).eval(), feature_dim
+    # by default for efficiency reason clip is loaded in fp16
+    # to make it fp32
+    return model.to(device,dtype=torch.float32).eval(), feature_dim

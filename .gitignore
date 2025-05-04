@@ -9,3 +9,4 @@ mobilenet/
 resnet18/
 *.job
 __pycache__/
+logs/

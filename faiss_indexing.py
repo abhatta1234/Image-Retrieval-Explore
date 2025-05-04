@@ -6,7 +6,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 from feature_extractor import get_feature_extractor
-
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser(
@@ -27,6 +27,7 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
     feats_path = os.path.join(args.out_dir, 'feats.npy')
+    imgs_path = os.path.join(args.out_dir, 'img_paths.txt')
     flat_idx_path = os.path.join(args.out_dir, 'flat.idx')
     ivf_idx_path = os.path.join(args.out_dir, 'ivf.idx')
 
@@ -52,9 +53,14 @@ def main():
         if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp'))
     ])
 
+    #saving the image paths that are sorted to index later
+    with open(imgs_path, "w") as f:
+        f.write("\n".join(image_files))
+
+
     # Extract and normalize features
     feats_list = []
-    for idx in range(0, len(image_files), args.bs):
+    for idx in tqdm(range(0, len(image_files), args.bs), desc="Processing images"):
         batch_files = image_files[idx: idx + args.bs]
         tensors = []
         for img_path in batch_files:
@@ -67,7 +73,9 @@ def main():
             normed = torch.nn.functional.normalize(features, p=2, dim=1).cpu().numpy()
         feats_list.append(normed)
 
+
     feats = np.vstack(feats_list).astype('float32')
+    print("Number of Feature points and feature dimension -->",feats.shape)
     np.save(feats_path, feats)
 
     # -------------------------------------------------
@@ -98,6 +106,7 @@ def main():
     faiss.write_index(ivf_index, ivf_idx_path)
 
     print(f"Saved features to {feats_path}")
+    print(f"Saved sorted image paths to {imgs_path}")
     print(f"Built Flat index ({flat_index.ntotal} vectors)")
     print(f"Built IVF index ({ivf_index.ntotal} vectors, {nlist} clusters)")
 

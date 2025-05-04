@@ -4,3 +4,8 @@ test-*/
 *.npy
 *.txt
 *.index
+clip/
+mobilenet/
+resnet18/
+*.job
+__pycache__/

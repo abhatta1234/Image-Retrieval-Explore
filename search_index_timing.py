@@ -126,7 +126,8 @@ def main() -> None:
     # for img_path in iter_paths(img_paths_file):
     #     process(img_path)
 
-    for img_path in tqdm(paths, desc="Feature Extraction + Search in Gallery"):
+    #for img_path in tqdm(paths, desc="Feature Extraction + Search in Gallery"):
+    for img_path in tqdm(paths):
         start_feat = time.perf_counter()
         q_feat = extract_query_feature(img_path, model, preprocess, device)
         total_extract += time.perf_counter() - start_feat

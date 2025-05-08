@@ -74,6 +74,17 @@ To calculate average timing, each of the 100K images was processed through each 
 
 Feature extraction time dominates the overall latency while search operations are surprisingly fast, even over large galleries, when using efficient libraries like FAISS. This was an unexpected finding that highlights the importance of optimization in the feature extraction phase.
 
+## Usage
+
+```
+python ./faiss_indexing.py \
+  --data-dir ./search_gallery \
+  --out-dir ./output/${model[${SGE_TASK_ID}-1]} \
+  --model ${model[${SGE_TASK_ID}-1]} \
+  --bs 32
+
+```
+
 ## Future Work
 
 1. Extend to larger search sets (full ImageNet)

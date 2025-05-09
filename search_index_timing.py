@@ -1,4 +1,14 @@
+'''
+
+Experimenting with average timing for faiss index vs brute search
+Given a list of images, search against both and return the average time
+This can be broken down in multiple codes
+But for ease of reading doing all in one
+
+'''
+
 """Search query images against FAISS and brute-force cosine similarity."""
+
 import argparse
 import logging
 import time

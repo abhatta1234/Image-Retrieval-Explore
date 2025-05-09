@@ -1,3 +1,11 @@
+'''
+
+Given a query image search it against the faiss index and also brute search for comparison
+
+'''
+
+
+
 import argparse
 import os
 import time

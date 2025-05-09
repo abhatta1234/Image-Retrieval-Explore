@@ -46,6 +46,7 @@ Implementation details:
   - |x−y|² = 2 - 2⟨x,y⟩ = 2 - 2cos(θ)
 This allows converting between distance and similarity metrics
 
+    
 ### FAISS Clustering
 
 For the ANN implementation, the number of clusters (nlist) is a key parameter:

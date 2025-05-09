@@ -1,93 +1,131 @@
-# Image Retrieval Exploration: Optimizing Similarity Search with FAISS
+# Image Retrieval Exploration: Optimizing Similarity Search with FAISS
 
-This project explores performance differences in similarity search methods using FAISS index for image retrieval across a dataset of 100k images from tiny-imagenet.
+The project begins by benchmarking three similarity‑search strategies on a **100 k**‑image subset of **tiny‑ImageNet**, quantifying their speed and memory footprints. It then scales the experiment to **1 M** images to evaluate two critical questions: **(i)** how much, if any, retrieval‑accuracy degradation arises when approximate‑nearest‑neighbor indexing replaces brute‑force search, and **(ii)** how the end‑to‑end latency profile shifts as the gallery size increases by an order of magnitude.
+
+---
 
 ## Project Overview
 
-The project compares three different search approaches:
-1. Brute force cosine similarity search
-2. FAISS flat cosine similarity search
-3. Approximate Nearest Neighbor (ANN) search using FAISS
+The project compares **three** search approaches:
 
-Features are extracted using three different models:
+1. **Brute‑force cosine‑similarity search**
+2. **FAISS flat cosine‑similarity search**
+3. **Approximate Nearest Neighbor (ANN) search using FAISS**
 
-| Model                        | Parameter Count (Millions) |
-|------------------------------|---------------------------|
-| ResNet18                     | ~11.7M                    |
-| MobileNet                    | ~4.2M                     |
-| CLIP Vision Encoder (ViT-B/32) | ~87.85M                 |
+### Feature‑extraction models
 
+| Model                          | Parameter Count (Millions) |
+| ------------------------------ | -------------------------- |
+| ResNet‑18                      | \~11.7 M                   |
+| MobileNet                      | \~4.2 M                    |
+| CLIP Vision Encoder (ViT‑B/32) | \~87.85 M                  |
+
+---
 
 ## Implementation Details
 
 ### Feature Extraction
 
-All training images (100k) from tiny-imagenet are processed to extract feature vectors using each model. These feature vectors are then normalized to unit length to enable cosine similarity calculation through dot products.
+All training images (100 k) from tiny‑ImageNet are processed to extract feature vectors with each model. These vectors are **normalized to unit length** so cosine similarity equals the dot product.
 
 ### Vector Normalization
 
-For cosine similarity search:
-```
-# Want to apply cosine similarity search
-# So we normalize feature vectors so that dot product = cos(θ):
-#   cos(θ) = (u/|u|) · (v/|v|)  ∈ [−1, 1]
-# From Cauchy-Schwarz:  |a·b| ≤ ‖a‖‖b‖
+```python
+# Normalize feature vectors so that dot product = cos(θ)
+#   cos(θ) = (u / |u|) · (v / |v|)  ∈ [−1, 1]
+torch.nn.functional.normalize(features, p=2, dim=1)
 ```
 
-Implementation details:
-- Vectors are normalized during feature extraction and inference: `torch.nn.functional.normalize(features, p=2, dim=1)`
-- After normalization, cosine similarity is equivalent to inner product
-- For normalized vectors: |x−y|² = 2−2×⟨x,y⟩
+* After normalization, cosine similarity ⇔ inner product.
+* For unit vectors `|x−y|² = 2 − 2⟨x, y⟩`.
 
+Further, for unit vectors
 
-- The relationship between L2 distance and cosine similarity for normalized vectors:
-  - |x−y|² = |x|² + |y|² - 2⟨x,y⟩
-  - For unit vectors where |x| = |y| = 1:
-  - |x−y|² = 2 - 2⟨x,y⟩ = 2 - 2cos(θ)
-This allows converting between distance and similarity metrics
+$$
+|x - y|^{2} = |x|^{2} + |y|^{2} - 2\langle x, y\rangle
+           = 2 - 2\cos(\theta)
+$$
 
-    
-### FAISS Clustering
+which enables conversion between distance and similarity metrics.
 
-For the ANN implementation, the number of clusters (nlist) is a key parameter:
-- Rule of thumb: between √N (≈316) and N/10 (10,000) for 100k vectors
-- Common practical values: 100, 256, 512, or 1024
-- Initial implementation uses √N clusters
+### FAISS Clustering (IVF)
+
+For the ANN implementation, **`nlist`** (clusters) is key:
+
+* Rule of thumb for 100 k vectors: `√N ≈ 316` to `N/10 = 10 000`
+* Common practical values: 100, 256, 512, 1024
+* Initial implementation uses **√N clusters**.
+
+---
 
 ## Performance Results
 
-To calculate average timing, each of the 100K images was processed through each neural network for feature extraction and then searched using each method. The reported values represent the average of these 100K runs. Feature extraction was performed using an NVIDIA Titan XP GPU, while search operations were conducted on CPU/compute nodes.
+Each of the 100 k images is:
 
-| Method             | ResNet18  | Mobilenet   |   CLIP    |
-|:-------------------|:---------:|:-----------:|:---------:|
-| Feature dim        |    512    |    1280     |    512    |
-| Feature extraction |  0.03686s |   0.02060s  |  0.03746s |
-| Brute-Search       |  0.02646s |   0.04427s  |  0.02701s |
-| FAISS-Flat         |  0.01635s |   0.03949s  |  0.01757s |
-| FAISS-IVF          |  0.00016s |   0.00035s  |  0.00017s |
+1. Fed through each network for feature extraction
+2. Queried against the gallery with each search method
 
+Feature extraction uses an **NVIDIA Titan XP GPU**; search runs on CPU/compute nodes.
 
-> Search time for MobileNet is higher due to its larger feature dimension.  
-> MobileNet's inference time is the lowest, as it has low MFLOPS.  
-> Note: Feature extraction is performed per single image, so network inference time dominates rather than data transfer costs.
+| Method                 | ResNet‑18 | MobileNet |    CLIP   |
+| :--------------------- | :-------: | :-------: | :-------: |
+| **Feature dim**        |    512    |    1280   |    512    |
+| **Feature extraction** | 0.03686 s | 0.02060 s | 0.03746 s |
+| **Brute‑Search**       | 0.02646 s | 0.04427 s | 0.02701 s |
+| **FAISS‑Flat**         | 0.01635 s | 0.03949 s | 0.01757 s |
+| **FAISS‑IVF**          | 0.00016 s | 0.00035 s | 0.00017 s |
+
+> *MobileNet’s larger feature dimension explains its higher search time, while its inference time is the lowest due to low MFLOPS.
+> Feature extraction (per image) dominates latency; network inference overshadows data‑transfer costs.*
+
+---
 
 ## Key Insights
 
-Feature extraction time dominates the overall latency while search operations are surprisingly fast, even over large galleries, when using efficient libraries like FAISS. This was an unexpected finding that highlights the importance of optimization in the feature extraction phase.
+Feature‑extraction time, **not** search time, dominates end‑to‑end latency. Efficient libraries such as **FAISS** make even large‑scale search (\~100 k items) extremely fast, underscoring the need to optimize the extraction phase.
 
-## Usage
+---
 
+## Accuracy vs. Trade‑off Plot
+
+*To be added.*
+
+---
+
+## Feature‑Extraction & FAISS‑Indexing Commands
+
+### Extract features & create FAISS index files
+
+```bash
+python faiss_indexing.py \
+  --data-dir <dir_where_all_images_are> \
+  --out-dir <directory_save_index_features> \
+  --model <resnet|clip|mobilenet> \
+  --bs <batch_size>
 ```
-python ./faiss_indexing.py \
-  --data-dir ./search_gallery \
-  --out-dir ./output/${model[${SGE_TASK_ID}-1]} \
-  --model ${model[${SGE_TASK_ID}-1]} \
-  --bs 32
 
+### Reproduce **Table 1** results
+
+```bash
+python3 search_index_timing.py \
+  --model <resnet|clip|mobilenet>
 ```
 
-## Future Work
+### Generate accuracy vs. trade‑off plot
 
-1. Extend to larger search sets (full ImageNet)
-2. Conduct a comprehensive ANN accuracy vs. speed study (effects may be more pronounced with larger datasets)
-3. Deploy a smaller version on web as an end-to-end demo for web development practice
+(will be uploaded soon)
+
+```bash
+python3 search_vs_accuracy_tradeoff.py \
+  --all_img_list <path_to_txt_with_image_paths> \
+  --model <resnet|clip|mobilenet> \
+  --metric <l2|ip> \
+  --k <top_k_retrieval>
+```
+
+---
+
+## To‑Dos
+
+* [ ] Deploy a smaller end‑to‑end web demo for development practice.
+

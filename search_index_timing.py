@@ -76,10 +76,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Search query images against FAISS and brute-force searches'
     )
-    parser.add_argument(
-        '--out-dir', required=True, type=Path,
-        help='Directory containing saved indexes, features, and image paths file'
-    )
+
     parser.add_argument(
         '--model', choices=['resnet18', 'mobilenet', 'clip'],
         default='resnet18', help='Backbone model to use'
